@@ -17,7 +17,7 @@ RELATION_TYPE = {
 
 
 def read_jsonl_file(file_path: Union[str, Path]) -> List[Dict]:
-    with open(file_path, "r") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         rows = [json.loads(line) for line in f]
     return rows
 

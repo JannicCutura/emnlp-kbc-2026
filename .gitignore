@@ -1,6 +1,29 @@
+# Secrets: API keys for hosted inference are read from .env at runtime
+.env
+.env.*
+!.env.example
+
+# Local virtualenv
+.venv/
+venv/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+.pytest_cache/
+
+agents/
+
+# LaTeX build intermediates (keep paper.pdf as the inspectable artifact)
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+paper/*.toc
 
 # C extensions
 *.so
@@ -46,6 +69,18 @@ output/
 
 # Private test ground truth
 data/test_gt.jsonl
+
+# Local inference traces, row shards, and model outputs
+data/model_outputs/
+
+# Preserved generated artifacts from the retired prototype
+data/predictions.jsonl
+data/predictions.zip
+data/smoke.jsonl
+data/val-awards-input.jsonl
+data/val-numeric-input.jsonl
+data/val-soft-gates-input.jsonl
+data/val.zip
 
 # Local-only rebuild utilities (not part of the released dataset repo)
 scripts/

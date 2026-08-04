@@ -1,0 +1,75 @@
+lm_studio:
+  # OpenRouter speaks the same OpenAI-compatible protocol as LM Studio.
+  # For a local model instead, use "http://localhost:1234/v1" and drop
+  # api_key_env so the placeholder api_key below is used.
+  base_url: "https://openrouter.ai/api/v1"
+  model: "google/gemma-4-31b-it"
+  # Published total parameters; quantization does not reduce the challenge count.
+  # Gemma 4 31B-IT is a 30.7B dense model despite the "31b" in its name, so it
+  # is inside the challenge maximum of 32B. Confirm against the official model
+  # card before submission: OpenRouter metadata is not an authoritative source,
+  # and Qwen3-32B is really 32.8B, i.e. names can round the wrong way.
+  model_parameters_billion: 30.7
+  # The key is read from this environment variable (or .env), never from YAML.
+  api_key_env: "OPENROUTER_API_KEY"
+  api_key: "lm-studio"
+  timeout_seconds: 300
+  # Hosted endpoints rate-limit and drop connections over a ~7,500-call run.
+  max_retries: 5
+  retry_backoff_seconds: 2.0
+  # OpenRouter routes one model name across backends at anything from fp4 to
+  # bf16. Precision is a confound on a closed-book recall task, so pin it rather
+  # than a single vendor: this stays valid when --model selects a different
+  # model for a comparison, and the provider actually used is recorded per call
+  # in the raw traces. Never compare two models across different quantizations.
+  # Name the provider as well as the precision. Pinning precision alone still
+  # allowed routing to a JAX backend that rejects `seed` outright, which killed
+  # a run at row 100. Check a new provider serves the model before switching.
+  provider_routing:
+    allow_fallbacks: false
+    order:
+      - "CoreWeave"
+    quantizations:
+      - "bf16"
+
+generation:
+  # Override with `akbc.py predict --output-mode json_schema` for the schema ablation.
+  output_mode: "prompt_json"
+  temperature: 0.6
+  top_p: 0.95
+  # A ceiling, not a target: you are billed for tokens generated, and every
+  # relation except awardWonBy stops far below this. 2048 truncated long award
+  # enumerations mid-object, which the parser then had to discard entirely.
+  max_tokens: 4096
+  seed: 42
+
+  samples:
+    # Numeric counts set by the train-only aggregator sweep (100 train hasArea
+    # rows): accuracy is flat from k=3 to k=20, so the extra samples bought
+    # nothing. hasCapacity uses the same median rule and follows suit.
+    hasArea: 7
+    hasCapacity: 7
+    personHasCityOfDeath: 20
+    companyTradesAtStockExchange: 10
+    countryLandBordersCountry: 3
+    awardWonBy: 20
+
+  # Samples within a row are independent, so they are issued concurrently.
+  # Set to 1 when serving the model locally, where requests queue anyway.
+  concurrency: 10
+
+  few_shot: 5
+  # Complete award examples can be extremely long.
+  few_shot_by_relation:
+    awardWonBy: 1
+
+  # Starting values; replace only with complete train-only calibration results.
+  candidate_thresholds:
+    companyTradesAtStockExchange: 0.30
+    awardWonBy: 0.05
+  abstention_thresholds:
+    personHasCityOfDeath: 0.50
+    companyTradesAtStockExchange: 0.50
+
+train_data_file: "data/train.jsonl"
+# synthetic_cot_file: "data/model_outputs/synthetic-cot.jsonl"

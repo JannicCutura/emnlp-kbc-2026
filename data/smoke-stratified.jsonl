@@ -1,0 +1,12 @@
+{"SubjectEntity":"Lošinj","Relation":"hasArea","ObjectEntities":[]}
+{"SubjectEntity":"Ilha da Queimada Grande","Relation":"hasArea","ObjectEntities":[]}
+{"SubjectEntity":"Estádio Gileno de Carli in Pernambuco","Relation":"hasCapacity","ObjectEntities":[]}
+{"SubjectEntity":"University Stadium in Georgia","Relation":"hasCapacity","ObjectEntities":[]}
+{"SubjectEntity":"Natalya Gramolina","Relation":"personHasCityOfDeath","ObjectEntities":[]}
+{"SubjectEntity":"Joseph L. Goldstein","Relation":"personHasCityOfDeath","ObjectEntities":[]}
+{"SubjectEntity":"United Wire Factories Co.","Relation":"companyTradesAtStockExchange","ObjectEntities":[]}
+{"SubjectEntity":"RPS Group","Relation":"companyTradesAtStockExchange","ObjectEntities":[]}
+{"SubjectEntity":"The Gambia","Relation":"countryLandBordersCountry","ObjectEntities":[]}
+{"SubjectEntity":"Antigua and Barbuda","Relation":"countryLandBordersCountry","ObjectEntities":[]}
+{"SubjectEntity":"Grammy Award for Best Rock Album","Relation":"awardWonBy","ObjectEntities":[]}
+{"SubjectEntity":"honorary doctor of Stockholm University","Relation":"awardWonBy","ObjectEntities":[]}

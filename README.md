@@ -6,7 +6,8 @@ This repository contains:
 
 - The [dataset](data/) for the shared task
 - [Evaluation script](evaluate.py)
-- [Baseline code](models/)
+- The single local [improvement-plan pipeline](akbc.py) and
+  [configuration](configs/improvement-plan.yaml)
 - Instructions for submitting your predictions
 
 ## Table of contents
@@ -18,7 +19,7 @@ This repository contains:
 5. [Evaluation metrics](#evaluation-metrics)
 6. [Getting started](#getting-started)
     - [Setup](#setup)
-    - [Baselines](#baselines)
+    - [Local improvement-plan pipeline](#local-improvement-plan-pipeline)
     - [How to structure your prediction file](#how-to-structure-your-prediction-file)
     - [Submit your predictions](#submit-your-predictions)
 
@@ -174,30 +175,275 @@ Parameters: ``-g`` (the ground truth file), ``-p`` (the prediction file).
 5. Submit your predictions
    (see [Submit your predictions](#submit-your-predictions)).
 
-### Baselines
+### Local improvement-plan pipeline
 
-#### Baseline: Qwen3.5-9B
+`akbc.py` is the only supported local solution entry point. It implements the
+improvement-plan method with one eligible model served by LM Studio. The system
+is closed-book: it does not browse, retrieve external facts, fine-tune a model,
+or combine several neural models.
 
-Config
-file: [configs/baseline-qwen-3.5-9b.yaml](configs/baseline-qwen-3.5-9b.yaml)
+#### Setup and configuration
 
-```bash
-python baseline.py -c configs/baseline-qwen-3.5-9b.yaml -i data/val.jsonl
-python evaluate.py -p output/baseline-qwen-3.5-9b.jsonl -g data/val.jsonl
+Create the environment on Windows:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-Results (validation, Participant lm-kbc, Submission ID 850875):
+Load one model in LM Studio and start its OpenAI-compatible local server. Edit
+`configs/improvement-plan.yaml` once:
+
+- set `lm_studio.model` to the exact identifier shown by LM Studio;
+- set `lm_studio.model_parameters_billion` to the published **total** parameter
+  count;
+- keep the value at or below the challenge limit of 32B.
+
+Quantization does not reduce the counted parameter total, and a
+mixture-of-experts model is counted by total rather than active parameters.
+Every neural call in a run uses this one configured model.
+
+Validate the configuration and input without contacting LM Studio:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/smoke-stratified.jsonl `
+  -o data/model_outputs/dry-run.jsonl `
+  --dry-run
+```
+
+#### Method
+
+Every row first receives a short identity description from the same model.
+The pipeline then rotates train-only few-shot examples and asks for independent,
+rationale-bearing candidate sets. It normalizes strings like the official
+evaluator, collapses only unambiguous aliases observed in `train.jsonl`, and
+uses this fixed relation-specific policy:
+
+| Relation | Samples | Aggregation and post-processing |
+| --- | ---: | --- |
+| `hasArea` | 20 | Median of parseable values in km² |
+| `hasCapacity` | 15 | Median of parseable integer-capacity values |
+| `personHasCityOfDeath` | 20 | Majority vote with empty/`None` as a first-class candidate |
+| `companyTradesAtStockExchange` | 10 | Candidate-support threshold plus train-calibrated empty voting |
+| `countryLandBordersCountry` | 3 | Union, one omission-completion pass, then conservative verification |
+| `awardWonBy` | 20 | Low-support-threshold union plus one non-destructive omission pass |
+
+The configured thresholds are starting values. Replace them only with results
+from the train-only calibration procedure below. There are no hard pre-gates,
+cross-model ensembles, or validation-entity rules.
+
+#### Predicting and resuming
+
+Run the fixed 12-row, relation-stratified smoke test first. `--smoke` keeps the
+same method but uses one sample per relation and caps each completion at 512
+tokens:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/smoke-stratified.jsonl `
+  -o data/model_outputs/smoke.jsonl `
+  --runtime-dir data/model_outputs `
+  --smoke `
+  --resume
+```
+
+After checking quality, latency, and the raw responses, run all 478 validation
+rows:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/val.jsonl `
+  -o data/model_outputs/val-prompt-json.jsonl `
+  --runtime-dir data/model_outputs `
+  --resume
+```
+
+Prediction reads only `SubjectEntity` and `Relation` from each input row; the
+validation answers are never placed in prompts. Use a different output name for
+each controlled experiment. To compare constrained decoding with tolerant
+prompt-JSON using the same pipeline:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/val.jsonl `
+  -o data/model_outputs/val-json-schema.jsonl `
+  --runtime-dir data/model_outputs `
+  --output-mode json_schema `
+  --resume
+```
+
+To compare another downloaded model without creating another configuration,
+override both its exact LM Studio identifier and published total size:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/smoke-stratified.jsonl `
+  -o data/model_outputs/smoke-mistral-24b.jsonl `
+  --runtime-dir data/model_outputs `
+  --smoke `
+  --model "exact-lm-studio-model-id" `
+  --model-parameters-billion 24 `
+  --resume
+```
+
+Keep a separate output name for every model and response mode. This prevents
+their checkpoints and measurements from being mixed.
+
+For the final 477-row test split:
+
+```powershell
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/test.jsonl `
+  -o data/model_outputs/test.jsonl `
+  --runtime-dir data/model_outputs `
+  --resume
+```
+
+Each completed row is immediately committed as a separate immutable JSON shard
+under:
 
 ```text
-                              macro-p  macro-r  macro-f1  micro-p  micro-r  micro-f1  avg. #preds  #empty preds
-awardWonBy                      0.247    0.078     0.101    0.279    0.046     0.079       24.000             0
-companyTradesAtStockExchange    0.369    0.725     0.354    0.368    0.551     0.441        1.170             0
-countryLandBordersCountry       0.697    0.911     0.665    0.859    0.883     0.871        2.706             0
-hasArea                         0.290    0.290     0.290    0.290    0.290     0.290        1.000             0
-hasCapacity                     0.180    0.180     0.180    0.180    0.180     0.180        1.000             0
-personHasCityOfDeath            0.210    0.600     0.210    0.210    0.344     0.261        1.000             0
-*** All Relations ***           0.324    0.507     0.313    0.400    0.170     0.239        1.759             0
+data/model_outputs/<output-name>-<hash>.improvement-plan-v2.state/rows/
 ```
+
+Repeating the identical command with `--resume` continues at the first missing
+row. The manifest rejects changed inputs, model settings, generation settings,
+prompt-example content, or prompt/parser/schema policy code. A finished run
+also materializes:
+
+- `data/model_outputs/<output-name>.jsonl` — cleaned submission rows;
+- `data/model_outputs/raw/<output-name>.raw.json` — prompts, responses,
+  rationales, aggregation decisions, and token usage;
+- `...state/complete.json` — completed and expected row counts.
+
+Keeping the shards under `data/` avoids the previous synced single-file
+checkpoint bottleneck while preserving crash recovery.
+
+#### Evaluation, merging, and submission packaging
+
+Evaluate validation predictions locally:
+
+```powershell
+python evaluate.py `
+  -g data/val.jsonl `
+  -p data/model_outputs/val-prompt-json.jsonl
+```
+
+Relation-only experiments can be created without copying gold answers and then
+merged into a complete base prediction:
+
+```powershell
+python akbc.py select `
+  -i data/val.jsonl `
+  -o data/model_outputs/award-input.jsonl `
+  -r awardWonBy
+
+python akbc.py merge `
+  -b data/model_outputs/val-prompt-json.jsonl `
+  -p data/model_outputs/award-predictions.jsonl `
+  -o data/model_outputs/val-hybrid.jsonl
+```
+
+Package validation output with 478 rows:
+
+```powershell
+python akbc.py package `
+  -i data/model_outputs/val-hybrid.jsonl `
+  -o data/model_outputs/validation-submission.zip `
+  --expected-rows 478
+```
+
+Package final-test output with 477 rows:
+
+```powershell
+python akbc.py package `
+  -i data/model_outputs/test.jsonl `
+  -o data/model_outputs/test-submission.zip `
+  --expected-rows 477
+```
+
+The package command validates row structure and creates a ZIP containing exactly
+one file named `predictions.jsonl` at its root.
+
+#### Train-only threshold calibration
+
+Calibration is offline and never calls a model. First generate complete
+leave-one-out train traces for the relations whose thresholds should be
+calibrated. The pipeline automatically excludes the target training subject
+from its own demonstrations:
+
+```powershell
+python akbc.py select `
+  -i data/train.jsonl `
+  -o data/model_outputs/train-calibration-input.jsonl `
+  -r personHasCityOfDeath companyTradesAtStockExchange awardWonBy
+
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/model_outputs/train-calibration-input.jsonl `
+  -o data/model_outputs/train-calibration.jsonl `
+  --runtime-dir data/model_outputs `
+  --resume
+
+python akbc.py calibrate `
+  --train data/train.jsonl `
+  --traces data/model_outputs/raw/train-calibration.raw.json `
+  --output data/model_outputs/train-thresholds.yaml `
+  --relations personHasCityOfDeath companyTradesAtStockExchange awardWonBy
+```
+
+The calibrator maximizes relation macro-F1 with the official evaluator and
+writes thresholds plus hashes and provenance. It requires complete train
+coverage by default, proves that supplied gold rows are exact subsets of the
+bundled `data/train.jsonl`, and never edits the run configuration automatically.
+Copy the selected values into
+`configs/improvement-plan.yaml` before starting a new locked validation run.
+The `--traces` argument can also point to a completed run's `.state/rows/`
+directory.
+
+#### Train-derived SyntheticCoT
+
+SyntheticCoT is optional and model-specific. Generate an answer-blanked
+all-relation training input, run it with the same chosen model, and retain only
+reasoning paths that the offline filter verifies against training gold:
+
+```powershell
+python akbc.py select `
+  -i data/train.jsonl `
+  -o data/model_outputs/train-all-input.jsonl `
+  -r hasArea hasCapacity personHasCityOfDeath companyTradesAtStockExchange countryLandBordersCountry awardWonBy
+
+python akbc.py predict `
+  -c configs/improvement-plan.yaml `
+  -i data/model_outputs/train-all-input.jsonl `
+  -o data/model_outputs/train-all-reasoned.jsonl `
+  --runtime-dir data/model_outputs `
+  --resume
+
+python akbc.py build-cot `
+  --train data/train.jsonl `
+  --traces data/model_outputs/raw/train-all-reasoned.raw.json `
+  --output data/model_outputs/synthetic-cot.jsonl
+```
+
+The builder keeps numeric paths within the official 5% tolerance, exact
+complete sets for ordinary string relations, and non-empty precision-one award
+subsets. Every source row must be copied exactly from `train.jsonl`. It writes
+`synthetic-cot.jsonl.manifest.json`, binding the store to the model identifier,
+published parameter count, training content, trace source, and artifact bytes.
+Uncomment
+`synthetic_cot_file` in the configuration to prioritize retained examples while
+keeping ordinary training examples as fallback. Start a new output/checkpoint
+after changing examples, and never reuse one model's SyntheticCoT store for a
+different model.
 
 ### How to structure your prediction file
 
@@ -243,8 +489,14 @@ with open(fp, "w") as f:
 
 ### Submit your predictions
 
+Codabench submissions must be uploaded as a ZIP archive containing a file
+named exactly `predictions.jsonl` at the archive root. Do not merely rename the
+ZIP file: the JSONL member inside it must have that exact name. Before upload,
+copy the desired generated output to `predictions.jsonl` and ZIP that file.
+
 Submit your system paper via [OpenReview](https://openreview.net/group?id=EMNLP/2026/Workshop/LM-KBC_Shared_Task).
 
 For the validation leaderboard, submit your predictions to [Codabench (validation)](https://www.codabench.org/competitions/16267/).
 
-The test leaderboard will be released together with the test data.
+Upload the packaged 477-row test predictions when the organizers open the
+final test leaderboard.
