@@ -7,6 +7,9 @@
 .venv/
 venv/
 
+# Manuscript kept out of the public repo during double-blind review
+paper/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

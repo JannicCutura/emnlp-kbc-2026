@@ -215,5 +215,31 @@ class UnsupportedParameterTest(unittest.TestCase):
         for call in client.session.post.call_args_list:
             self.assertEqual(call.kwargs["json"]["seed"], 42)
 
+class ReasoningControlTest(unittest.TestCase):
+    def test_reasoning_is_disabled_by_default(self):
+        config = LMStudioConfig(model="m", model_parameters_billion=27.4)
+        with mock.patch("lm_kbc.client.requests.Session"):
+            client = LMStudioClient(config)
+        client.session.post.return_value = _ok()
+        client.chat([{"role": "user", "content": "hi"}],
+                    temperature=0.6, top_p=0.95, max_tokens=64, seed=42)
+        payload = client.session.post.call_args.kwargs["json"]
+        self.assertEqual(payload["reasoning"], {"enabled": False})
+
+    def test_reasoning_can_be_enabled_deliberately(self):
+        config = LMStudioConfig(
+            model="m", model_parameters_billion=27.4,
+            reasoning={"effort": "low"},
+        )
+        with mock.patch("lm_kbc.client.requests.Session"):
+            client = LMStudioClient(config)
+        client.session.post.return_value = _ok()
+        client.chat([{"role": "user", "content": "hi"}],
+                    temperature=0.6, top_p=0.95, max_tokens=64, seed=42)
+        self.assertEqual(
+            client.session.post.call_args.kwargs["json"]["reasoning"],
+            {"effort": "low"},
+        )
+
 if __name__ == "__main__":
     unittest.main()

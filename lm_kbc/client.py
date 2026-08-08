@@ -107,6 +107,10 @@ class LMStudioClient:
             payload["seed"] = seed
         if response_format is not None:
             payload["response_format"] = response_format
+        if self.config.reasoning is not None:
+            # Hidden reasoning tokens ignore max_tokens and bill at the
+            # completion rate, so they must be controlled explicitly.
+            payload["reasoning"] = self.config.reasoning
         if self.config.provider_routing is not None:
             # Pins the upstream provider and quantization on gateways that route
             # one model name across several backends, so a run stays comparable.

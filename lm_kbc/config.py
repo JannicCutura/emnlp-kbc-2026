@@ -51,6 +51,14 @@ class LMStudioConfig:
     # Optional gateway routing block (OpenRouter `provider`), recorded in the
     # run manifest so a hosted run names the backend that produced it.
     provider_routing: dict[str, Any] | None = None
+    # Reasoning control. Hidden chain-of-thought is NOT capped by max_tokens and
+    # is billed at the completion rate: one 100-row screen on a reasoning model
+    # emitted 3.87M reasoning tokens and cost $10.6 against a $0.09 estimate.
+    # This pipeline gets its rationale from the response schema, so reasoning is
+    # disabled unless a run deliberately enables it.
+    reasoning: dict[str, Any] | None = field(
+        default_factory=lambda: {"enabled": False}
+    )
 
 
 @dataclass(frozen=True)
@@ -162,6 +170,8 @@ def validate_config(config: AppConfig) -> None:
         model.provider_routing, dict
     ):
         raise ValueError("lm_studio.provider_routing must be a map or null")
+    if model.reasoning is not None and not isinstance(model.reasoning, dict):
+        raise ValueError("lm_studio.reasoning must be a map or null")
     if (
         isinstance(model.model_parameters_billion, bool)
         or not isinstance(model.model_parameters_billion, (int, float))
