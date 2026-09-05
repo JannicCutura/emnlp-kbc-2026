@@ -1,0 +1,189 @@
+% Bibliography for the AKBC 2026 system paper.
+%
+% Entries marked VERIFIED were checked against the publisher's own index during
+% preparation. Entries marked CHECK are widely cited works whose metadata was
+% written from knowledge and must be confirmed against the ACL Anthology or the
+% publisher before submission. Do not submit while a CHECK marker remains.
+%
+% The ACL template's placeholder entries (Aho:72, APA:83, Chandra:81,
+% Gusfield:97, Ando2005, andrew2007scalable, rasooli-tetrault-2015) were removed.
+
+% ----------------------------------------------------------------- shared task
+
+@misc{akbc2026,
+  author = {{AKBC Shared Task Organizers}},
+  title = {{AKBC Shared Task 2026: Predicting Complete Knowledge Base Entries
+           from Language Models}},
+  year = {2026},
+  url = {https://lm-kbc.github.io/challenge2026/},
+  note = {Accessed 5 August 2026}
+}
+
+% VERIFIED against https://ceur-ws.org/Vol-4041/
+@inproceedings{kalo2025lmkbc,
+  title     = {{LM-KBC} 2025: 4th Challenge on Knowledge Base Construction from
+               Pre-trained Language Models},
+  author    = {Kalo, Jan-Christoph and Razniewski, Simon and Zhang, Bohui and
+               Nguyen, Tuan-Phong},
+  booktitle = {Joint Proceedings of the 3rd Workshop on Knowledge Base
+               Construction from Pre-Trained Language Models and the 4th
+               Challenge on Language Models for Knowledge Base Construction},
+  series    = {{CEUR} Workshop Proceedings},
+  volume    = {4041},
+  year      = {2025},
+  address   = {Nara, Japan},
+  url       = {https://ceur-ws.org/Vol-4041/paper7.pdf}
+}
+
+% VERIFIED against https://ceur-ws.org/Vol-4041/
+@inproceedings{albertroulhac2025rewise,
+  title     = {{ReWiSe}: Relation-Wise Self-consistency for {LLM} Probing},
+  author    = {Albert-Roulhac, Edouard and Zouaq, Amal},
+  booktitle = {Joint Proceedings of the 3rd Workshop on Knowledge Base
+               Construction from Pre-Trained Language Models and the 4th
+               Challenge on Language Models for Knowledge Base Construction},
+  series    = {{CEUR} Workshop Proceedings},
+  volume    = {4041},
+  year      = {2025},
+  address   = {Nara, Japan},
+  url       = {https://ceur-ws.org/Vol-4041/paper8.pdf}
+}
+
+% VERIFIED against https://ceur-ws.org/Vol-4041/
+@inproceedings{he2025selfrag,
+  title     = {Combining Self-Retrieval-Augmented Generation with
+               Divide-and-Conquer for Language Model-based Knowledge Base
+               Construction},
+  author    = {He, Jingbo and Razniewski, Simon},
+  booktitle = {Joint Proceedings of the 3rd Workshop on Knowledge Base
+               Construction from Pre-Trained Language Models and the 4th
+               Challenge on Language Models for Knowledge Base Construction},
+  series    = {{CEUR} Workshop Proceedings},
+  volume    = {4041},
+  year      = {2025},
+  address   = {Nara, Japan},
+  url       = {https://ceur-ws.org/Vol-4041/paper11.pdf}
+}
+
+% VERIFIED against https://ceur-ws.org/Vol-3853/
+@inproceedings{kalo2024lmkbc,
+  title     = {Preface: {LM-KBC} Challenge 2024},
+  author    = {Kalo, Jan-Christoph and Nguyen, Tuan-Phong and
+               Razniewski, Simon and Zhang, Bohui},
+  booktitle = {Joint Proceedings of the {KBC-LM} Workshop and the {LM-KBC}
+               Challenge 2024},
+  series    = {{CEUR} Workshop Proceedings},
+  volume    = {3853},
+  year      = {2024},
+  address   = {Baltimore, USA},
+  url       = {https://ceur-ws.org/Vol-3853/paper0.pdf}
+}
+
+% ------------------------------------------ probing and parametric knowledge
+
+@inproceedings{petroni2019language,
+  title = {Language Models as Knowledge Bases?},
+  author = {Petroni, Fabio and Rockt{\"a}schel, Tim and Lewis, Patrick and
+            Bakhtin, Anton and Wu, Yuxiang and Miller, Alexander H. and
+            Riedel, Sebastian},
+  booktitle = {Proceedings of the 2019 Conference on Empirical Methods in
+               Natural Language Processing and the 9th International Joint
+               Conference on Natural Language Processing},
+  pages = {2463--2473},
+  year = {2019},
+  publisher = {Association for Computational Linguistics},
+  doi = {10.18653/v1/D19-1250},
+  url = {https://aclanthology.org/D19-1250/}
+}
+
+% CHECK: confirm TACL volume and pages
+@article{elazar2021pararel,
+  title   = {Measuring and Improving Consistency in Pretrained Language Models},
+  author  = {Elazar, Yanai and Kassner, Nora and Ravfogel, Shauli and
+             Ravichander, Abhilasha and Hovy, Eduard and
+             Sch{\"u}tze, Hinrich and Goldberg, Yoav},
+  journal = {Transactions of the Association for Computational Linguistics},
+  volume  = {9},
+  pages   = {1012--1031},
+  year    = {2021}
+}
+
+% CHECK: confirm anthology ID and pages
+@inproceedings{roberts2020knowledge,
+  title     = {How Much Knowledge Can You Pack Into the Parameters of a
+               Language Model?},
+  author    = {Roberts, Adam and Raffel, Colin and Shazeer, Noam},
+  booktitle = {Proceedings of the 2020 Conference on Empirical Methods in
+               Natural Language Processing (EMNLP)},
+  year      = {2020}
+}
+
+% CHECK: confirm anthology ID and pages
+@inproceedings{mallen2023popqa,
+  title     = {When Not to Trust Language Models: Investigating Effectiveness
+               of Parametric and Non-Parametric Memories},
+  author    = {Mallen, Alex and Asai, Akari and Zhong, Victor and
+               Das, Rajarshi and Khashabi, Daniel and Hajishirzi, Hannaneh},
+  booktitle = {Proceedings of the 61st Annual Meeting of the Association for
+               Computational Linguistics (ACL)},
+  year      = {2023}
+}
+
+% -------------------------------------------------------------------- retrieval
+
+% CHECK: confirm NeurIPS volume and pages
+@inproceedings{lewis2020rag,
+  title     = {Retrieval-Augmented Generation for Knowledge-Intensive {NLP}
+               Tasks},
+  author    = {Lewis, Patrick and Perez, Ethan and Piktus, Aleksandra and
+               Petroni, Fabio and Karpukhin, Vladimir and Goyal, Naman and
+               K{\"u}ttler, Heinrich and Lewis, Mike and Yih, Wen-tau and
+               Rockt{\"a}schel, Tim and Riedel, Sebastian and Kiela, Douwe},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2020}
+}
+
+% ---------------------------------- sampling, decomposition, and verification
+
+% CHECK: confirm ICLR 2023 citation form
+@inproceedings{wang2023selfconsistency,
+  title     = {Self-Consistency Improves Chain of Thought Reasoning in Language
+               Models},
+  author    = {Wang, Xuezhi and Wei, Jason and Schuurmans, Dale and
+               Le, Quoc V. and Chi, Ed H. and Narang, Sharan and
+               Chowdhery, Aakanksha and Zhou, Denny},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2023}
+}
+
+% CHECK: confirm venue (Findings of ACL 2024) and pages
+@inproceedings{dhuliawala2024cove,
+  title     = {Chain-of-Verification Reduces Hallucination in Large Language
+               Models},
+  author    = {Dhuliawala, Shehzaad and Komeili, Mojtaba and Xu, Jing and
+               Raileanu, Roberta and Li, Xian and Celikyilmaz, Asli and
+               Weston, Jason},
+  booktitle = {Findings of the Association for Computational Linguistics:
+               ACL 2024},
+  year      = {2024}
+}
+
+% ------------------------------------------------- abstention and null answers
+
+% CHECK: confirm anthology ID and pages
+@inproceedings{kamath2020selective,
+  title     = {Selective Question Answering under Domain Shift},
+  author    = {Kamath, Amita and Jia, Robin and Liang, Percy},
+  booktitle = {Proceedings of the 58th Annual Meeting of the Association for
+               Computational Linguistics (ACL)},
+  year      = {2020}
+}
+
+% CHECK: confirm anthology ID and pages
+@inproceedings{rajpurkar2018squad2,
+  title     = {Know What You Don't Know: Unanswerable Questions for {SQuAD}},
+  author    = {Rajpurkar, Pranav and Jia, Robin and Liang, Percy},
+  booktitle = {Proceedings of the 56th Annual Meeting of the Association for
+               Computational Linguistics (ACL)},
+  year      = {2018}
+}

@@ -1,0 +1,430 @@
+\documentclass[11pt]{article}
+
+% The submission is single-blind, so the author is named. Preprint mode keeps
+% page numbers and drops anonymization; switch to "final" for camera-ready.
+\usepackage[preprint]{acl}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
+
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+\newcommand{\systemname}{SetProbe}
+
+\title{\systemname: Description-First Relation-Wise Self-Consistency for
+Closed-Book Knowledge Base Construction%
+\thanks{The views expressed in this paper are solely those of the author and
+do not necessarily reflect the views of the European Central Bank or the
+European System of Central Banks. All code and data for full replication are
+available at \url{https://github.com/JannicCutura/emnlp-kbc-2026}.}}
+
+\author{Jannic Alexander Cutura \\
+  European Central Bank \& DSTI School of Engineering \\
+  \texttt{jannic.cutura@dsti.institute}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The AKBC 2026 shared task asks a language model to recover complete object sets
+closed-book. \systemname{} anchors each subject, samples several candidate
+sets, and aggregates them per relation, reaching 0.513 macro F1. Sample count,
+aggregation rule, and abstention thresholds each move the score by less than
+the evaluation set's own 0.045 confidence interval; only the choice of model
+does. The binding constraint is elementary: closed-book prediction cannot
+recover an object that appears in no sample.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+How can knowledge stored in a language model be turned into a complete database
+entry? A model may readily answer that the Dominican Republic borders Haiti,
+yet the same question becomes considerably harder when the expected answer
+contains nine neighboring countries, 80 award recipients, or no object at all.
+The AKBC 2026 shared task isolates this problem: given a subject \(s\) and a
+relation \(r\), a system must predict the complete set of object strings
+\(\{o_1,\ldots,o_k\}\) \citep{akbc2026}.
+
+Consider a country with three gold neighbors. Returning two correct ones yields
+perfect precision and \(2/3\) recall, while adding three plausible but wrong
+neighbors leaves recall unchanged and cuts precision to \(2/5\); inventing a
+death city for a living person turns an otherwise perfect row into a complete
+miss. The design question is therefore not whether the model knows a fact, but
+when a further candidate should be admitted.
+
+We answer it with description-first relation-wise self-consistency, which
+identifies the exact subject, generates candidate sets through prompts exposing
+different recall paths, and admits empty answers into aggregation rather than
+gating generation beforehand. It reaches 0.513 macro F1 on validation.
+
+The instructive result however is what did not move that number. Sample count is
+flat from three to twenty passes, no aggregation rule beats a plain median, and
+calibrating abstention thresholds on training traces reproduced the defaults
+exactly. Only the model mattered. The reason is elementary: a correct area value
+appears in the samples for 0.69 of rows under one eligible model and 0.43 under
+another, and no rule selects a value never generated.
+
+\section{Task}
+\label{sec:task}
+
+The dataset contains six relations and 477 training, 478 validation, and 475
+test rows; we reserve validation for evaluation, and fit prompts and thresholds
+on training data only. Cardinality varies sharply across relations. Area and
+capacity carry exactly one numeric object, accepted within 5\% relative
+tolerance. Death cities and stock exchanges are gold-empty on 39 and 36 of
+their 100 validation rows, so returning nothing is often the correct answer.
+Borders reach 14 neighbors and one award row has 610 recipients. String
+predictions are matched after normalization and alias expansion, and the
+official score is macro-averaged precision, recall, and F1 over
+subject--relation pairs.
+
+The setting is closed-book: inference may use open-weight models totalling at
+most 32 billion published parameters, but may not query the web, a retrieval
+index, an external corpus, or a knowledge base, and fine-tuning is prohibited.
+In-context examples, multi-step inference, and non-neural post-processing are
+allowed \citep{akbc2026}. Our system therefore uses the training split only for
+few-shot demonstrations and no external factual source.
+
+\section{System}
+\label{sec:system}
+
+\begin{figure*}[t]
+  \centering
+  \newsavebox{\pipelinebox}
+  \sbox{\pipelinebox}{%
+  \begin{tikzpicture}[
+      stage/.style={draw=black!45, fill=black!4, rounded corners=2pt,
+                    minimum height=9mm, align=center, inner xsep=3pt,
+                    font=\footnotesize},
+      term/.style={draw=black!70, line width=0.5pt, rounded corners=2pt,
+                   minimum height=9mm, align=center, inner xsep=3pt,
+                   font=\footnotesize\bfseries},
+      dec/.style={draw=black!45, fill=black!4, rounded corners=2pt,
+                  minimum height=9mm, align=center, inner xsep=3pt,
+                  font=\footnotesize},
+      arr/.style={-{Stealth[length=1.8mm]}, draw=black!60},
+      ann/.style={font=\scriptsize\itshape, text=black!55, inner sep=1.5pt}
+    ]
+    \node[term] (in) at (0,0) {$s$, $r$};
+    \node[stage, right=4mm of in] (anchor) {anchor};
+
+    % Three offset outlines suggest the n_r independent passes.
+    \node[stage, right=5mm of anchor, minimum width=17mm,
+          xshift=1.2mm, yshift=1.2mm] (pb) {};
+    \node[stage, right=5mm of anchor, minimum width=17mm,
+          xshift=0.6mm, yshift=0.6mm] (pm) {};
+    \node[stage, right=5mm of anchor, minimum width=17mm] (pa) {$n_r$ passes};
+
+    \node[stage, right=5mm of pa, minimum width=22mm] (parse)
+      {parse,\\aggregate};
+    \node[dec, right=5mm of parse] (gate) {empty?};
+    \node[stage, right=7mm of gate, minimum width=22mm] (post)
+      {complete,\\verify};
+    \node[term, right=5mm of post] (out) {ObjectEntities};
+
+    \draw[arr] (in) -- (anchor);
+    \draw[arr] (anchor) -- (pa);
+    \draw[arr] (pa) -- (parse);
+    \draw[arr] (parse) -- (gate);
+    \draw[arr] (gate) -- node[ann, above] {no} (post);
+    \draw[arr] (post) -- (out);
+    % Empty aggregates bypass post-processing entirely.
+    \draw[arr] (gate.south) |- ++(0,-6mm)
+      node[ann, above, pos=0.72] {yes} -| (out.south);
+
+    \node[ann, above=1mm of anchor] {1 call};
+    \node[ann, above=2mm of pb] {concurrent; rotating focus};
+    \node[ann, above=1mm of post] {borders, awards};
+  \end{tikzpicture}}%
+  \typeout{PIPEWIDTH=\the\wd\pipelinebox\space TEXTWIDTH=\the\textwidth}%
+  \usebox{\pipelinebox}
+  \caption{One row of inference. Completion and verification run only on a
+  non-empty aggregate: asking an omission pass what is missing from an empty
+  set invents members.}
+  \label{fig:pipeline}
+\end{figure*}
+
+\subsection{Common inference procedure}
+
+Figure~\ref{fig:pipeline} shows one row of inference. All calls use one
+open-weight model through an OpenAI-compatible chat endpoint. The model first
+produces a short identity anchor describing entity type, scope, and likely
+namesake confusions, then receives that anchor as explicitly uncertain context
+and generates $n_r$ concise rationales and candidate sets. Each pass uses a
+different seed, recall focus, and rotating leave-one-subject-out sample of
+training demonstrations. Passes are independent by construction and issued
+concurrently, with trace records ordered by request rather than completion so a
+concurrent run reproduces a serial one exactly.
+
+For relations that permit empty answers, the demonstration mix mirrors the
+relation's own training empty rate---two of five for death cities, one of five
+for borders---rather than being fixed in advance. An earlier version alternated
+empty and non-empty examples, showing a 60\% empty rate for every relation and
+biasing the model toward abstention on precisely the relations where abstention
+is scored.
+
+Candidate strings are parsed from the first valid JSON structure and normalized
+with the official evaluator's rules. We additionally build relation-specific
+alias maps from the nested aliases in the training split, rewriting an alias
+only when all its training occurrences identify one canonical entity, before
+support is counted so that equivalent surfaces reinforce rather than split a
+vote. A response the parser cannot read is dropped from its row's aggregate
+rather than counted as empty, which would convert a parser failure into a vote
+for ``no objects''; this never occurred in 5{,}392 validation calls. All
+prompts, responses, and aggregation decisions are retained in immutable per-row
+traces.
+
+\subsection{Relation-specific policies}
+
+Table~\ref{tab:policy} gives the pass count, aggregation rule, and
+post-processing for each relation; the prompts themselves are in the
+repository. Three of these choices are not self-evident.
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}lrll@{}}
+    \toprule
+    Relation & $n_r$ & Aggregation & After \\
+    \midrule
+    Area & 7 & median & --- \\
+    Capacity & 7 & median & --- \\
+    Death city & 20 & plurality w/ empty & --- \\
+    Exchange & 10 & support + empty & --- \\
+    Borders & 3 & union & compl.\ + verif. \\
+    Awards & 20 & support union & compl. \\
+    \bottomrule
+  \end{tabular}
+  \caption{Per-relation policy. Post-processing runs only on a non-empty
+  aggregate. Support thresholds are 0.30 for exchanges and 0.05 for awards, and
+  the empty-vote threshold is 0.50 for both abstention relations.}
+  \label{tab:policy}
+\end{table}
+
+\paragraph{Seven numeric samples, and a median.}
+Both follow a training-only sweep rather than convention. Over the 100 training
+area rows accuracy is flat between 0.53 and 0.58 for every count from 3 to 20
+and for every estimator we tried, including mode-seeking, trimmed, and
+order-of-magnitude-filtered variants. Twenty samples cost three times as much as
+seven and bought nothing measurable; the median survives by default rather than
+by merit.
+
+\paragraph{Post-processing runs only on a non-empty set.}
+This gate was the largest correction we made and we did not anticipate it.
+Asking ``which neighbors are missing?'' is a leading question, and a model
+asked for omissions supplies them whether or not any exist: in 12 of the 18
+gold-empty validation rows every sample correctly returned no neighbor, after
+which the completion pass invented Italy for Malta, Cuba and the United States
+for the Bahamas, and three maritime neighbors for Australia. The verifier
+accepted all of them. Across the split completion introduced 36 neighbors while
+verification removed 22. An omission pass presupposes a set to have omissions
+from; gating it raised border F1 from 0.796 to 0.859.
+
+\paragraph{Awards are partitioned by era.}
+A single answer may contain 610 recipients, so one undifferentiated prompt
+invites both truncation and omission. Twenty passes cycle through five time
+windows and a sixth focus organized by profession and recipient type. We apply
+no binary verifier: an earlier one cut correct recipients from 96 to 56.
+
+\section{Experimental Setup}
+\label{sec:experiments}
+
+\paragraph{Models.}
+We evaluate Gemma 4 31B-IT (30.7B published total parameters) and Gemma 3
+27B-IT (27.4B) on complete splits, and screen Qwen3.5 27B on area alone. Every
+relation in a run uses one model, so the inference-time total never exceeds
+32B; quantization does not reduce it and mixture-of-experts models count by
+published total.
+
+\paragraph{Inference configuration.}
+Inference runs through a hosted OpenAI-compatible gateway. Such gateways route
+one model name across backends at precisions from fp4 to bf16, so we pin the
+serving provider and bf16 precision and record the provider on every call;
+otherwise a comparison confounds model identity with numeric precision. Runs
+use temperature 0.6, top-$p$ 0.95, a 4{,}096-token cap, and five in-context
+examples except for awards. Hidden reasoning is disabled explicitly: it is not
+bounded by the generation cap and is billed at the completion rate, and one
+100-row screen on a reasoning-tuned model emitted 3.87M such tokens. A complete
+validation run costs 5{,}392 calls and about 80 minutes.
+
+\paragraph{Selection and ablations.}
+All thresholds are selected from complete leave-one-out training traces with
+the official evaluator, and the locked configuration is then evaluated on the
+validation rows. We do not tune thresholds, sample counts, aggregation rules,
+or entity-specific rules against validation answers, and because the validation
+gold is distributed with the task we additionally report training-split scores
+as an independent estimate. The historical baseline is an earlier GPT-OSS-20B
+prototype scoring 0.460, whose hard empty-answer gates and award verifier the
+present system removes. Comparisons use a paired bootstrap over rows with
+20{,}000 resamples.
+
+\section{Results}
+\label{sec:results}
+
+\begin{table}[t]
+  \centering
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Relation & G4 31B & G3 27B & $\Delta$ \\
+    \midrule
+    Land borders & \textbf{.989} & .859 & $+.130^{*}$ \\
+    Stock exchange & \textbf{.713} & .648 & $+.064$ \\
+    Death city & \textbf{.460} & .340 & $+.120$ \\
+    Capacity & .220 & \textbf{.230} & $-.010$ \\
+    Awards & .148 & \textbf{.205} & $-.057$ \\
+    Area & .370 & \textbf{.520} & $-.150^{*}$ \\
+    \midrule
+    All relations & \textbf{.513} & .490 & $+.022$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Per-relation validation F1 for the two models. $^{*}$ marks
+  differences whose 95\% paired-bootstrap interval excludes zero. The overall
+  difference does not ($p=0.33$).}
+  \label{tab:per-relation}
+\end{table}
+
+On all 478 validation rows the system reaches macro precision 0.542, recall
+0.578, and F1 0.513, against 0.460 for an earlier gated pipeline of ours on a
+different model. The 95\% bootstrap interval is $[0.468, 0.557]$, and an
+independent run on the training split scores 0.484.
+
+Table~\ref{tab:per-relation} shows the two models are complementary rather than
+ordered. Gemma 4 is better on every relation rewarding adherence to a precise
+definition, reaching 0.989 on borders where one row separates it from a perfect
+score, while Gemma 3 is better on the two relations rewarding raw numeric
+recall. Only those two effects survive a paired bootstrap and they nearly
+cancel: the overall $+0.022$ has interval $[-0.022, +0.067]$ and $p=0.33$. The
+best system we can describe is one we may not submit, since pairing Gemma 3's
+area with Gemma 4's other relations would score 0.544 but sum to 58.1B
+parameters.
+
+\paragraph{Tuning does not move the score; knowledge does.}
+Three of our four controlled comparisons returned null results. Numeric sample
+count is flat from 3 to 20 samples. No aggregation rule beats a plain median.
+Sweeping the abstention thresholds on complete training traces reproduced the
+uncalibrated defaults, changing death and exchange F1 by 0.000 each. Only the
+model changed anything, and the changes it produced were relation-specific
+rather than uniform.
+
+The reason is visible in the candidate pools. For \texttt{hasArea} a correct
+value appears in at least one sample for 0.69 of rows under Gemma 3 and 0.43
+under Gemma 4, while the aggregates return 0.54 and 0.37; for
+\texttt{hasCapacity} the ceiling is 0.19. Where the correct value is absent
+from every sample no selection rule can recover it, and where it is present but
+in the minority, agreement-based aggregation discards it because an incorrect
+value dominates the distribution.
+
+\section{Error Analysis}
+\label{sec:error-analysis}
+
+\paragraph{Abstention is too conservative, not too aggressive.}
+On stock exchanges the system predicts empty on all 36 gold-empty rows with no
+spurious answer at all, yet returns nothing on 26 rows that do have a listing;
+death cities are correct on 33 of 39 gold-empty rows against 32 rows where a
+recoverable city was suppressed. This is a negative result about our own design:
+the prototype's hard pre-generation gate suppressed 28 of 61 non-empty death
+rows and we replaced it with generation-first voting to recover them, yet the
+replacement suppresses 32. The mechanism changed from a classifier to a vote but
+the operating point did not, because the samples agree on silence---when the
+model does not know, twenty passes independently return nothing, and no rule
+over unanimous abstentions manufactures a city.
+
+\paragraph{Parsing is not the limiting factor.}
+Because our central claim is that correct objects are absent rather than
+mishandled, we audited it: across 5{,}392 calls the parser never dropped a gold
+alias present in an answer array. Of the incorrect rows, 58 of 63 for area, 71
+of 78 for capacity and 38 of 48 for death contain no correct value anywhere in
+any response, while aggregation discards a correct minority value in 15 further
+rows, worth about 0.03 overall.
+
+Stock exchanges are the exception. In 9 of 27 incorrect rows the model names the
+correct exchange in its rationale and then returns an empty set because it
+believes the listing has ended---Leclanché is ``previously listed on the SIX
+Swiss Exchange, but delisted following its acquisition''. Given that judgement
+it correctly obeys our instruction to return nothing for a company that is not
+independently public, so reading the answer out of the rationale would mean
+admitting its own negations. Here the ceiling is set by temporal belief rather
+than by missing knowledge.
+
+\paragraph{Remaining errors.}
+Median numeric error is 3.2\%, so failures are misidentification rather than
+noise: \emph{Mainland} returns 9{,}596{,}961, the area of China rather than of
+the 540\,km$^2$ island. The identity anchor was introduced for exactly this and
+does not eliminate it. Border recall is 0.998 once the omission pass is gated.
+Awards average 68.0 predicted entities against a gold mean of 145.8, up from
+15.2, but ten rows cannot be measured to better than $\pm0.11$.
+
+\section{Related Work}
+\label{sec:related-work}
+
+LAMA established that pretrained models hold retrievable factual associations
+\citep{petroni2019language} and closed-book question answering that they can be
+queried without document access \citep{roberts2020knowledge}. Both ask whether a
+known object is recovered, not how many exist, which is what makes this task
+hard: a probe scored on its top answer never has to decide that a country has
+nine neighbors or that a living person has no city of death. Phrasing alone
+moves probing results substantially \citep{elazar2021pararel}, so we vary
+phrasing across passes rather than search for one best prompt. Retrieval would
+supply exactly the long-tail facts parametric memory covers worst
+\citep{lewis2020rag,mallen2023popqa}; forbidding it leaves prompt diversity and
+repeated sampling as the only sources of variation.
+
+The task has run annually with shifting resource rules
+\citep{kalo2024lmkbc,kalo2025lmkbc}. The 2025 edition is closest to ours: it
+fixed a single small model, so methods rather than models distinguished the
+entries. The winner combined chain-of-thought prompting with relation-wise
+self-consistency and train-tuned per-relation aggregation
+\citep{albertroulhac2025rewise}; the runner-up generated an entity description
+before extraction and decomposed high-cardinality relations
+\citep{he2025selfrag}. We adopt both. Our contribution is not their invention
+but a measurement of what they are worth once the model may vary, which a
+fixed-model setting cannot reveal.
+
+Self-consistency aggregates repeated samples by majority vote
+\citep{wang2023selfconsistency}, but assumes one final answer; set prediction
+instead votes over normalized candidates, where a value generated once in twenty
+passes may still be correct. Chain-of-verification reduces hallucination through
+separate checking questions \citep{dhuliawala2024cove}, though a closed-book
+verifier consults the same parameters as the generator, so we verify only
+borders. Finally, a third of death and exchange rows are gold-empty, making
+abstention a first-class prediction as in unanswerable-question benchmarks
+\citep{rajpurkar2018squad2} and calibrated selective prediction
+\citep{kamath2020selective}.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented a description-first self-consistency pipeline for closed-book
+knowledge base construction, sharing one orchestration pattern across relations
+while assigning aggregation by cardinality. It scores 0.513 on validation.
+
+The more useful result is where the remaining error lives. Varying sample count,
+aggregation rule, abstention threshold, and model, only the last changes the
+score, and its gains are relation-specific and mutually exclusive under a
+parameter budget. An incorrect value that dominates the sample distribution
+defeats agreement-based selection precisely when agreement is what one would
+like to trust. Effort is therefore better spent on elicitation diversity than on
+aggregation, and reporting a candidate-pool ceiling alongside the score would
+make systems easier to compare.
+
+\section*{Limitations}
+
+The system cannot recover facts absent from the model's pretraining data,
+which matters most for deaths, listings, and awards close to the July 2026
+reference date. Reusing one model for border generation and verification may
+reinforce rather than correct a misconception, and train-calibrated thresholds
+may shift under distribution change. We therefore reserve the test split for a
+single final evaluation and record every prompt, response, and configuration.
+
+\bibliography{custom}
+
+\end{document}
