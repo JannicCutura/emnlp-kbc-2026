@@ -7,8 +7,8 @@
 .venv/
 venv/
 
-# Manuscript kept out of the public repo during double-blind review
-paper/
+# Personal writing-style notes, not part of the manuscript
+paper/style_guide.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -27,6 +27,14 @@ paper/*.log
 paper/*.out
 paper/*.synctex.gz
 paper/*.toc
+
+
+
+agents/
+referee_reports/
+tmp/
+models/
+
 
 # C extensions
 *.so
