@@ -1,0 +1,723 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+% ---------------------------------------------------------------------------
+% SetProbe: talk deck. Classic academic Beamer layout (Frankfurt theme: blue,
+% section strip with frame dots across the top, rounded blocks, outline at
+% each section), deliberately simple content: one message and one picture per
+% slide. Every number is taken from paper/paper.tex; nothing here comes from a
+% run the paper does not report.
+% ---------------------------------------------------------------------------
+
+\usetheme{Frankfurt}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{fontawesome5}
+\usepackage{hyperref}
+
+% Palette: the theme's own structure blue for everything that is "ours" or
+% "after" (bars, sample boxes, alerted text), grey for "before / other", green
+% and red only for right and wrong. Charts contrast light and dark tints of
+% the same blue rather than introducing a second hue.
+\usebeamercolor{structure}
+\colorlet{base}{structure.fg}
+\colorlet{accent}{structure.fg}
+\colorlet{ours}{structure.fg}
+\definecolor{other}{HTML}{9E9E9E}
+\definecolor{bad}{HTML}{C0392B}
+\definecolor{good}{HTML}{2E8B57}
+\setbeamercolor{alerted text}{fg=accent}
+\setbeamerfont{alerted text}{series=\bfseries}
+
+% Outline slide at the start of every section, current section highlighted.
+\AtBeginSection[]{%
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection]
+  \end{frame}}
+
+\newcommand{\systemname}{SetProbe}
+\newcommand{\ok}{\textcolor{good}{\faCheck}}
+\newcommand{\no}{\textcolor{bad}{\faTimes}}
+\newcommand{\rel}[1]{\texttt{#1}}
+
+% Shared chart look. "area legend" draws filled swatches instead of the
+% default bar-outline glyph, which renders badly at this size.
+\pgfplotsset{
+  deck/.style={
+    axis line style={base!50}, tick label style={font=\scriptsize},
+    label style={font=\scriptsize}, ymajorgrids, grid style={base!15},
+    area legend,
+    legend style={draw=none, font=\scriptsize, at={(0.5,1.02)}, anchor=south,
+                  /tikz/every even column/.append style={column sep=5pt}},
+  },
+}
+
+% Boxes used in the "answer set" pictures.
+\tikzset{
+  subj/.style={draw=base, thick, rounded corners=2pt, fill=base!6,
+               minimum height=7mm, inner xsep=6pt, font=\small},
+  obj/.style={draw=ours, thick, rounded corners=2pt, fill=ours!10,
+              minimum height=7mm, minimum width=12mm, inner xsep=4pt,
+              font=\small},
+  objwrong/.style={obj, draw=bad, fill=bad!10},
+  objempty/.style={obj, draw=other, fill=white, densely dashed},
+  stage/.style={draw=base!60, fill=base!5, rounded corners=2pt,
+                minimum height=9mm, align=center, inner xsep=5pt,
+                font=\small},
+  term/.style={draw=base, thick, rounded corners=2pt, minimum height=9mm,
+               align=center, inner xsep=5pt, font=\small\bfseries},
+  arr/.style={-{Stealth[length=2mm]}, draw=base!70, thick},
+  ann/.style={font=\scriptsize\itshape, text=base!70, inner sep=1.5pt},
+  sample/.style={draw=ours!70, fill=ours!8, rounded corners=1pt,
+                 minimum width=11mm, minimum height=6.5mm, font=\small\ttfamily},
+  sampleempty/.style={sample, draw=other, fill=white, densely dashed},
+  count/.style={draw, thick, rounded corners=2pt, minimum height=11mm,
+                minimum width=46mm, align=center, font=\small},
+}
+
+\title[\systemname]{\systemname}
+\subtitle{Turning a language model's memory into complete database rows}
+\author{Jannic Alexander Cutura}
+\institute[ECB \& DSTI]{European Central Bank \& DSTI School of Engineering}
+\date[AKBC 2026]{AKBC 2026 Shared Task}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  % Same disclaimer as the paper, pinned to the bottom of the title frame.
+  \vfill
+  \begin{center}
+    \scriptsize\textcolor{black!60}{The views expressed in this presentation
+    are solely those of the author and do not necessarily reflect the views
+    of the European Central Bank or the European System of Central Banks.}
+  \end{center}
+\end{frame}
+
+% ===========================================================================
+\section{The problem}
+% ===========================================================================
+
+\begin{frame}{One question, three very different right answers}
+  \begin{center}
+  \resizebox{0.92\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=3mm]
+    % Row 1: one object
+    \node[subj] (s1) {Dominican Republic \,\textcolor{base!60}{borders}};
+    \node[obj, right=8mm of s1] (o1) {Haiti};
+    \draw[arr] (s1) -- (o1);
+
+    % Row 2: many objects
+    \node[subj, below=11mm of s1.west, anchor=west] (s2) {Russia \,\textcolor{base!60}{borders}};
+    \node[obj, right=8mm of s2] (o2a) {Norway};
+    \node[obj, right=2mm of o2a] (o2b) {Finland};
+    \node[obj, right=2mm of o2b] (o2c) {Estonia};
+    \node[obj, right=2mm of o2c] (o2d) {Latvia};
+    \node[obj, right=2mm of o2d] (o2e) {$\cdots$};
+    \node[obj, right=2mm of o2e] (o2f) {North Korea};
+    \draw[arr] (s2) -- (o2a);
+    \node[ann, right=3mm of o2f] {14 in total};
+
+    % Row 3: no object
+    \node[subj, below=11mm of s2.west, anchor=west] (s3) {A living person \,\textcolor{base!60}{city of death}};
+    \node[objempty, right=8mm of s3] (o3) {$\varnothing$};
+    \draw[arr] (s3) -- (o3);
+    \node[ann, right=3mm of o3] {the correct answer is \emph{nothing}};
+  \end{tikzpicture}}
+  \end{center}
+
+  \vspace{3mm}
+  Given a subject $s$ and a relation $r$, return the \alert{complete} set of
+  objects $\{o_1,\ldots,o_k\}$ --- closed-book, from the model's weights alone.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Why completeness is hard: every extra guess is scored}
+  A country with three true neighbours. Three ways to answer it:
+
+  \vspace{1mm}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \resizebox{\textwidth}{!}{%
+      \begin{tikzpicture}[node distance=2mm]
+        % (a)
+        \node[font=\small\bfseries, text=base] (la) {A};
+        \node[obj, right=3mm of la] (a1) {\ok};
+        \node[obj, right=of a1] (a2) {\ok};
+        \node[objempty, right=of a2] (a3) {\phantom{\ok}};
+        \node[ann, right=3mm of a3] {two right, one missed};
+        % (b)
+        \node[font=\small\bfseries, text=base, below=10mm of la] (lb) {B};
+        \node[obj, right=3mm of lb] (b1) {\ok};
+        \node[obj, right=of b1] (b2) {\ok};
+        \node[objempty, right=of b2] (b3) {\phantom{\ok}};
+        \node[objwrong, right=of b3] (b4) {\no};
+        \node[objwrong, right=of b4] (b5) {\no};
+        \node[objwrong, right=of b5] (b6) {\no};
+        \node[ann, right=3mm of b6] {plus three wrong};
+        % (c)
+        \node[font=\small\bfseries, text=base, below=10mm of lb] (lc) {C};
+        \node[subj, right=3mm of lc] (c0) {living person};
+        \node[objwrong, right=4mm of c0] (c1) {Paris};
+        \node[ann, right=3mm of c1] {gold is $\varnothing$};
+      \end{tikzpicture}}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[
+          ybar, deck, bar width=6pt, width=\textwidth, height=4.4cm,
+          ymin=0, ymax=1.1, ytick={0,0.5,1},
+          symbolic x coords={A,B,C}, xtick=data, enlarge x limits=0.3,
+          legend columns=3,
+        ]
+          \addplot[fill=other, draw=none] coordinates {(A,1.0) (B,0.4) (C,0)};
+          \addplot[fill=ours!40, draw=none] coordinates {(A,0.667) (B,0.667) (C,0)};
+          \addplot[fill=accent, draw=none] coordinates {(A,0.8) (B,0.5) (C,0)};
+          \legend{Precision, Recall, F1}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+
+  \vspace{1mm}
+  Three plausible extras cut precision from 1.0 to 0.4; one invented city
+  turns a perfect row into a total miss. The question is not \emph{whether}
+  the model knows a fact but \alert{when one more candidate should be
+  admitted}.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The six relations}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \small\setlength{\tabcolsep}{4pt}
+      \begin{tabular}{@{}llcc@{}}
+        \toprule
+        Relation & Object & Set size & Gold-empty \\
+        \midrule
+        Area & number ($\pm5\%$) & 1 & --- \\
+        Capacity & number ($\pm5\%$) & 1 & --- \\
+        City of death & city & 0--1 & 39\% \\
+        Stock exchange & exchange & 0--few & 36\% \\
+        Land borders & countries & 0--14 & 26\% \\
+        Awards & recipients & up to 610 & --- \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \begin{block}{Data}
+        477 train, 478 validation, 475 test rows. Validation gold is used
+        for scoring only.
+      \end{block}
+      \begin{block}{Score}
+        Macro precision, recall and F1 over subject--relation pairs, after
+        normalisation and alias expansion.
+      \end{block}
+    \end{column}
+  \end{columns}
+
+  \vspace{3mm}
+  One relation wants a single number, another wants \emph{nothing} a third of
+  the time, a third wants hundreds of names. \alert{Cardinality is the design
+  problem.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The rules: closed book}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Allowed}
+        \begin{itemize}
+          \item[\ok] Open-weight models, $\le$\,32B published parameters
+          \item[\ok] In-context examples from the training split
+          \item[\ok] Multi-step inference, repeated sampling
+          \item[\ok] Non-neural post-processing
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Forbidden}
+        \begin{itemize}
+          \item[\no] Web, retrieval index, external corpus, knowledge base
+          \item[\no] Fine-tuning
+          \item[\no] Combining models whose parameters sum above 32B
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+
+  \vspace{5mm}
+  Retrieval would supply exactly the long-tail facts a model's memory covers
+  worst. Without it, \alert{prompt diversity and repeated sampling} are the
+  only sources of variation left.
+\end{frame}
+
+% ===========================================================================
+\section{What we do}
+% ===========================================================================
+
+\begin{frame}{One row of inference}
+  \begin{center}
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}
+    \node[term] (in) at (0,0) {$s$, $r$};
+    \node[stage, right=5mm of in] (anchor) {\textbf{1} anchor};
+    \node[stage, right=6mm of anchor, minimum width=18mm, xshift=1.2mm, yshift=1.2mm] (pb) {};
+    \node[stage, right=6mm of anchor, minimum width=18mm, xshift=0.6mm, yshift=0.6mm] (pm) {};
+    \node[stage, right=6mm of anchor, minimum width=18mm] (pa) {\textbf{2} $n_r$ passes};
+    \node[stage, right=6mm of pa, minimum width=22mm] (parse) {\textbf{3} parse,\\aggregate};
+    \node[stage, right=6mm of parse] (gate) {\textbf{4} empty?};
+    \node[stage, right=8mm of gate, minimum width=22mm] (post) {\textbf{5} complete,\\verify};
+    \node[term, right=6mm of post] (out) {objects};
+
+    \draw[arr] (in) -- (anchor);
+    \draw[arr] (anchor) -- (pa);
+    \draw[arr] (pa) -- (parse);
+    \draw[arr] (parse) -- (gate);
+    \draw[arr] (gate) -- node[ann, above] {no} (post);
+    \draw[arr] (post) -- (out);
+    \draw[arr] (gate.south) |- ++(0,-7mm) node[ann, above, pos=0.72] {yes} -| (out.south);
+
+    \node[ann, above=1.5mm of anchor] {1 call};
+    \node[ann, above=2.5mm of pb] {concurrent, rotating focus};
+    \node[ann, above=1.5mm of post] {borders, awards only};
+  \end{tikzpicture}}
+  \end{center}
+
+  \vspace{3mm}
+  One open-weight model and one orchestration pattern for every relation.
+  The next seven slides walk through each box and what it changed.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 1 --- Say who the subject is before answering}
+  Many subjects are ambiguous names. One cheap call (256 tokens, low
+  temperature) asks the model to describe the exact entity first; that
+  description is handed to every later pass as \emph{uncertain} context.
+
+  \vspace{2mm}
+  \begin{center}
+  \begin{tikzpicture}[node distance=3mm]
+    \node[subj] (q) {``University Stadium in Georgia'', \rel{hasCapacity}};
+    \node[stage, right=7mm of q, text width=56mm, align=left] (a)
+      {Home field of the University of Georgia Bulldogs in Athens, Georgia ---
+       officially \textbf{Sanford Stadium}.};
+    \draw[arr] (q) -- (a);
+    \node[ann, above=1mm of a] {anchor};
+  \end{tikzpicture}
+  \end{center}
+
+  \vspace{1mm}
+  \begin{itemize}
+    \item Resolves namesakes, scope, and ``is this company independently listed?''
+    \item It can also propagate a wrong guess: \emph{Ayon Island} (East Siberian
+      Sea) was anchored to the Philippines and every sample followed.
+    \item \alert{Not ablated}: present in every run, so its net value is unmeasured.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 2 --- Ask many times, each time differently}
+  Each pass uses a different seed, a different \emph{recall focus}, and a
+  different rotating set of training examples. Passes run concurrently.
+
+  \vspace{2mm}
+  \begin{center}
+  \resizebox{0.95\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=2.5mm]
+    \node[subj] (q) {Lo\v{s}inj, \rel{hasArea}};
+    \node[sample, right=8mm of q] (p1) {128};
+    \node[sample, right=of p1] (p2) {126};
+    \node[sample, right=of p2] (p3) {128};
+    \node[sample, right=of p3] (p4) {129};
+    \node[sample, right=of p4] (p5) {128};
+    \node[sample, right=of p5] (p6) {128};
+    \node[sample, right=of p6] (p7) {128};
+    \node[obj, right=8mm of p7, draw=good, fill=good!10] (m) {median 128 \ok};
+    \draw[arr] (q) -- (p1);
+    \draw[arr] (p7) -- (m);
+    \node[ann, above=1mm of p4] {7 independent passes};
+  \end{tikzpicture}}
+  \end{center}
+
+  \vspace{2mm}
+  \begin{itemize}
+    \item Every pass returns a short rationale and a JSON answer array.
+    \item A pass the parser cannot read is dropped, never counted as ``no
+      objects'' --- it never happened in 5{,}392 validation calls.
+    \item Aliases seen in training are canonicalised \emph{before} votes are
+      counted, so equivalent surfaces reinforce rather than split a vote.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 3 --- Aggregate by cardinality, not by relation name}
+  \begin{columns}[T]
+    \begin{column}{0.54\textwidth}
+      \small
+      \begin{tabular}{@{}lrl@{}}
+        \toprule
+        Relation & $n_r$ & Rule \\
+        \midrule
+        Area, capacity & 7 & median \\
+        City of death & 20 & plurality vote, \emph{empty counts} \\
+        Stock exchange & 10 & support $\ge 0.30$, empty vote \\
+        Land borders & 3 & union \\
+        Awards & 20 & support $\ge 0.05$ union \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{itemize}
+        \item \textbf{One value:} agreement is the signal $\to$ median.
+        \item \textbf{Zero or one:} silence is a vote $\to$ plurality.
+        \item \textbf{Many:} a name seen once in twenty passes may still be
+          right $\to$ low-threshold union.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \vspace{5mm}
+  All thresholds were selected on \alert{training traces only}; validation
+  gold is never touched before scoring.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 4 --- Let ``nothing'' be an answer, not a gate}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \centering
+      \textcolor{other}{\textbf{Before}: gate, then generate}
+
+      \vspace{2mm}
+      \begin{tikzpicture}
+        \node[stage, draw=other, fill=other!10] (g) {is there a death city?};
+        \node[stage, below=5mm of g, draw=other, fill=other!10] (gen) {generate};
+        \node[objempty, left=8mm of gen] (e) {$\varnothing$};
+        \draw[arr, draw=other] (g) -- node[ann, right] {yes} (gen);
+        \draw[arr, draw=other] (g.west) -| node[ann, above, pos=0.25] {no} (e.north);
+      \end{tikzpicture}
+
+      \vspace{2mm}
+      \small A classifier suppressed \textcolor{bad}{28 of 61} real death
+      cities before the model was ever asked for one.
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      \textcolor{accent}{\textbf{After}: generate, then vote}
+
+      \vspace{2mm}
+      \begin{tikzpicture}[node distance=2mm]
+        \node[sample] (a) {Paris};
+        \node[sample, right=of a] (b) {Paris};
+        \node[sampleempty, right=of b] (c) {$\varnothing$};
+        \node[sample, right=of c] (d) {Paris};
+        \node[obj, below=5mm of b.south east, anchor=north, draw=good, fill=good!10] (v) {plurality: Paris};
+        \draw[arr] (b.south east) -- (v);
+      \end{tikzpicture}
+
+      \vspace{2mm}
+      \small Every pass may return an empty set; empties vote like any other
+      answer (threshold 0.5).
+    \end{column}
+  \end{columns}
+
+  \vspace{4mm}
+  Also: few-shot demonstrations now mirror each relation's \emph{own} empty
+  rate (2 of 5 for death cities, 1 of 5 for borders). A fixed 60\% empty mix
+  had nudged the model toward silence on exactly the relations where silence
+  is scored.
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 5 --- Never ask ``what is missing?'' of an empty set}
+  \begin{columns}[T]
+    \begin{column}{0.60\textwidth}
+      \resizebox{\linewidth}{!}{%
+      \begin{tikzpicture}[node distance=2.5mm]
+        \node[subj] (q) {Malta, \rel{countryLandBordersCountry}};
+        \node[sampleempty, below=4mm of q.south west, anchor=north west] (s1) {$\varnothing$};
+        \node[sampleempty, right=of s1] (s2) {$\varnothing$};
+        \node[sampleempty, right=of s2] (s3) {$\varnothing$};
+        \node[ann, right=3mm of s3] {all three passes: no neighbour \ok};
+        \node[stage, below=5mm of s1.south west, anchor=north west, draw=bad, fill=bad!8] (c)
+          {completion: ``which neighbours are missing?''};
+        \node[objwrong, right=5mm of c] (it) {Italy};
+        \draw[arr, draw=bad] (c) -- (it);
+        \node[ann, below=1mm of it] {verifier accepted it \no};
+      \end{tikzpicture}}
+
+      \vspace{4mm}
+      \small Across the split the omission pass \emph{added} 36 neighbours and
+      verification removed 22. A leading question presupposes a set to have
+      omissions from.
+    \end{column}
+    \begin{column}{0.38\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[
+          ybar, deck, bar width=14pt, bar shift=0pt,
+          width=\textwidth, height=4.6cm,
+          ymin=0.7, ymax=0.9, ytick={0.7,0.75,0.8,0.85,0.9},
+          symbolic x coords={ungated,gated}, xtick={ungated,gated},
+          enlarge x limits=0.5,
+          nodes near coords, every node near coord/.append style={font=\scriptsize},
+          /pgf/number format/.cd, fixed, precision=3, fixed zerofill,
+          ylabel={border F1},
+        ]
+          \addplot[fill=other, draw=none] coordinates {(ungated,0.796)};
+          \addplot[fill=accent, draw=none] coordinates {(gated,0.859)};
+        \end{axis}
+      \end{tikzpicture}
+
+      \centering\small Post-processing now runs only on a non-empty aggregate.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 6 --- Enumerate big sets in slices}
+  A single award may have 610 recipients; one undifferentiated prompt invites
+  both truncation and omission.
+
+  \vspace{2mm}
+  \begin{center}
+  \resizebox{0.95\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=2mm]
+    \node[subj] (q) {award, \rel{awardWonBy}};
+    \node[sample, right=8mm of q, minimum width=17mm] (w1) {era 1};
+    \node[sample, right=of w1, minimum width=17mm] (w2) {era 2};
+    \node[sample, right=of w2, minimum width=17mm] (w3) {era 3};
+    \node[sample, right=of w3, minimum width=17mm] (w4) {era 4};
+    \node[sample, right=of w4, minimum width=17mm] (w5) {era 5};
+    \node[sample, right=of w5, minimum width=24mm, draw=accent, fill=accent!10] (w6) {by profession};
+    \draw[arr] (q) -- (w1);
+    \node[ann, above=1mm of w3.north east] {20 passes cycle through six foci; union with support $\ge 0.05$};
+  \end{tikzpicture}}
+  \end{center}
+
+  \vspace{2mm}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item Token cap raised 2{,}048 $\to$ 4{,}096: a truncated JSON array
+          parsed as \emph{zero} recipients, not a partial list.
+        \item Mean predicted set size: 15 $\to$ 68 (gold mean 146).
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item An earlier binary verifier cut correct recipients from 96 to 56,
+          so we removed it: a closed-book verifier consults the same weights
+          as the generator.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Step 7 --- Choose the model, and pin how it is served}
+  \begin{columns}[T]
+    \begin{column}{0.58\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[
+          ybar, deck, bar width=7pt, width=\textwidth, height=5.4cm,
+          ymin=0, ymax=1.05, ytick={0,0.25,0.5,0.75,1},
+          symbolic x coords={Borders,Exchange,Death,Capacity,Awards,Area},
+          xtick=data, enlarge x limits=0.12,
+          x tick label style={font=\scriptsize, rotate=20, anchor=north east},
+          legend columns=2, ylabel={validation F1},
+        ]
+          \addplot[fill=accent, draw=none] coordinates
+            {(Borders,0.989) (Exchange,0.713) (Death,0.460) (Capacity,0.220) (Awards,0.148) (Area,0.370)};
+          \addplot[fill=other, draw=none] coordinates
+            {(Borders,0.859) (Exchange,0.648) (Death,0.340) (Capacity,0.230) (Awards,0.205) (Area,0.520)};
+          \legend{Gemma 4 31B, Gemma 3 27B}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.40\textwidth}
+      \begin{itemize}
+        \item Complementary, not ordered: Gemma 4 wins where a precise
+          definition matters, Gemma 3 where numeric recall matters.
+        \item Overall 0.513 vs 0.490 --- \alert{not significant}
+          (CI $[-0.02, +0.07]$).
+        \item The best mix would score 0.544 but sums to 58.1B parameters.
+        \item A hosted gateway serves one model name at anything from fp4 to
+          bf16, so we pin provider and precision on every call.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ===========================================================================
+\section{What did not help, and why}
+% ===========================================================================
+
+\begin{frame}{Three knobs that did nothing}
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[
+          deck, width=\textwidth, height=5cm,
+          xmin=2, xmax=21, ymin=0.4, ymax=0.7,
+          xtick={3,5,7,10,15,20}, ytick={0.4,0.5,0.6,0.7},
+          xlabel={samples per row $k$}, ylabel={train area accuracy},
+        ]
+          \addplot[fill=ours!25, draw=none] coordinates {(3,0.53) (20,0.53) (20,0.58) (3,0.58)} \closedcycle;
+          \node[font=\scriptsize, text=ours!80!black] at (axis cs:11.5,0.555) {every $k$, every estimator};
+          \draw[accent, thick, dashed] (axis cs:7,0.4) -- (axis cs:7,0.7);
+          \node[font=\scriptsize, text=accent, anchor=west] at (axis cs:7.3,0.66) {chosen: 7};
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.52\textwidth}
+      \begin{enumerate}
+        \item \textbf{Sample count.} Flat from 3 to 20 passes; twenty cost
+          three times as much as seven and bought nothing.
+        \item \textbf{Aggregation rule.} Mode-seeking, trimmed and
+          magnitude-filtered estimators all tied or lost to the median.
+        \item \textbf{Abstention thresholds.} Sweeping them on training traces
+          rediscovered the defaults exactly.
+      \end{enumerate}
+      \vspace{2mm}
+      None of the four factors --- these three, or the model --- moves the
+      overall score beyond its 0.045 confidence interval.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Why: no rule selects a value that was never generated}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tikzpicture}
+        \begin{axis}[
+          ybar, deck, bar width=16pt, width=\textwidth, height=5.2cm,
+          ymin=0, ymax=1, ytick={0,0.25,0.5,0.75,1},
+          symbolic x coords={Gemma 3, Gemma 4}, xtick=data, enlarge x limits=0.45,
+          nodes near coords, every node near coord/.append style={font=\scriptsize},
+          legend columns=1, legend style={at={(0.5,1.02)}},
+          ylabel={share of area rows},
+        ]
+          \addplot[fill=ours!35, draw=none] coordinates {(Gemma 3,0.69) (Gemma 4,0.43)};
+          \addplot[fill=accent, draw=none] coordinates {(Gemma 3,0.52) (Gemma 4,0.37)};
+          \legend{correct value in some sample, returned by the aggregate}
+        \end{axis}
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \item The light bar is the \alert{ceiling}: the best any selection
+          rule could do on that candidate pool.
+        \item The gap between the bars is all that aggregation can be blamed
+          for. The gap above the light bar is knowledge the model never
+          produced.
+        \item Of the incorrect rows, 58 of 63 (area) and 71 of 78 (capacity)
+          contain no correct value in \emph{any} response.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ===========================================================================
+\section{Results}
+% ===========================================================================
+
+\begin{frame}{Validation results}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \small
+      \begin{tabular}{@{}lrrr@{}}
+        \toprule
+        Relation & G4 31B & G3 27B & $\Delta$ \\
+        \midrule
+        Land borders & \textbf{.989} & .859 & $+.130^{*}$ \\
+        Stock exchange & \textbf{.713} & .648 & $+.064$ \\
+        City of death & \textbf{.460} & .340 & $+.120$ \\
+        Capacity & .220 & \textbf{.230} & $-.010$ \\
+        Awards & .148 & \textbf{.205} & $-.057$ \\
+        Area & .370 & \textbf{.520} & $-.150^{*}$ \\
+        \midrule
+        All relations & \textbf{.513} & .490 & $+.022$ \\
+        \bottomrule
+      \end{tabular}
+
+      \vspace{1mm}
+      {\scriptsize $^{*}$ 95\% paired-bootstrap interval excludes zero.}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{block}{Headline}
+        Macro F1 \textbf{0.513} on 478 validation rows, 95\% CI
+        $[0.468, 0.557]$; 0.484 on an independent training-split run;
+        0.460 for our earlier gated prototype.
+      \end{block}
+      \begin{block}{Test split}
+        Gold is not distributed. Predictions were frozen on 8 Aug 2026 under
+        the locked configuration and await the organisers' score.
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Where the remaining errors live: too quiet, not too loud}
+  \centering
+  \begin{tikzpicture}
+    % Fixed x positions keep both rows aligned regardless of label width.
+    \node[font=\small\bfseries, text=base, anchor=east] at (0,0) {Stock exchange};
+    \node[count, draw=good, fill=good!8, anchor=west] at (0.4,0)
+      {36 of 36 gold-empty rows\\correctly returned $\varnothing$ \ok};
+    \node[count, draw=bad, fill=bad!8, anchor=west] at (5.4,0)
+      {26 real listings\\returned $\varnothing$ anyway \no};
+
+    \node[font=\small\bfseries, text=base, anchor=east] at (0,-1.5) {City of death};
+    \node[count, draw=good, fill=good!8, anchor=west] at (0.4,-1.5)
+      {33 of 39 gold-empty rows\\correctly returned $\varnothing$ \ok};
+    \node[count, draw=bad, fill=bad!8, anchor=west] at (5.4,-1.5)
+      {32 recoverable cities\\suppressed \no};
+  \end{tikzpicture}
+
+  \vspace{4mm}
+  \begin{itemize}
+    \item Replacing the hard gate with a vote changed the \emph{mechanism},
+      not the \emph{operating point}: when the model does not know, twenty
+      passes independently return nothing, and no rule over unanimous
+      abstentions manufactures a city.
+    \item Exchanges are different: in 9 of 27 zero-score rows the rationale
+      names the right exchange, then returns $\varnothing$ because it believes
+      the listing has ended. That ceiling is temporal belief, not missing
+      knowledge.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Takeaways}
+  \begin{enumerate}
+    \item \textbf{Sampling and aggregation are not where the score is.}
+      Sample count, aggregation rule, abstention threshold, and even the choice
+      between two eligible models all stay inside the confidence interval
+      overall. The model alone moves \emph{individual} relations, in opposite
+      directions.
+    \item \textbf{Abstention is a prediction.} Let empty answers vote; never
+      gate generation, and never ask an empty set what it is missing.
+    \item \textbf{Report the ceiling with the score.} The share of rows whose
+      correct value appears in \emph{any} sample tells you whether to spend
+      effort on elicitation or on aggregation. For us the answer was
+      elicitation.
+  \end{enumerate}
+
+  \vspace{5mm}
+  \centering
+  \small Code, prompts, traces and configuration:\\
+  \url{https://github.com/JannicCutura/emnlp-kbc-2026}
+\end{frame}
+
+\end{document}

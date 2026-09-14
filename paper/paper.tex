@@ -49,11 +49,13 @@ Paris, France.}
 \begin{abstract}
 The AKBC 2026 shared task asks a language model to recover complete object sets
 closed-book. \systemname{} anchors each subject, samples several candidate
-sets, and aggregates them per relation, reaching 0.513 macro F1. Sample count,
-aggregation rule, and abstention thresholds each move the score by less than
-the evaluation set's own 0.045 confidence interval; only the choice of model
-does. The binding constraint is elementary: closed-book prediction cannot
-recover an object that appears in no sample.
+sets, and aggregates them per relation, reaching 0.513 macro F1 on validation.
+Sample count, aggregation rule, abstention thresholds, and the choice between
+two eligible models each move the overall score by less than the evaluation
+set's own 0.045 confidence interval. Only the model moves individual
+relations, and it moves them in opposite directions that cancel. The binding
+constraint is elementary: closed-book prediction cannot recover an object that
+appears in no sample.
 \end{abstract}
 
 \section{Introduction}
@@ -80,11 +82,13 @@ different recall paths, and admits empty answers into aggregation rather than
 gating generation beforehand. It reaches 0.513 macro F1 on validation.
 
 The instructive result however is what did not move that number. Sample count is
-flat from three to twenty passes, no aggregation rule beats a plain median, and
+flat from three to twenty passes, no aggregation rule beats a plain median,
 calibrating abstention thresholds on training traces reproduced the defaults
-exactly. Only the model mattered, for an elementary reason: a correct area value
-appears in the samples for 0.69 of rows under one eligible model and 0.43 under
-another, and no rule selects a value never generated.
+exactly, and swapping one eligible model for another shifts the overall score
+by less than its confidence interval. Only the model moves individual relations,
+for an elementary reason: a correct area value appears in the samples for 0.69
+of rows under one model and 0.43 under another, and no rule selects a value
+never generated.
 
 \section{Task}
 \label{sec:task}
@@ -268,16 +272,26 @@ bounded by the generation cap and is billed at the completion rate, and one
 100-row screen on a reasoning-tuned model emitted 3.87M such tokens. A complete
 validation run costs 5{,}392 calls and about 80 minutes.
 
-\paragraph{Selection and ablations.}
+\paragraph{Selection and controlled comparisons.}
 All thresholds are selected from complete leave-one-out training traces with
 the official evaluator, and the locked configuration is then evaluated on the
 validation rows. We do not tune thresholds, sample counts, aggregation rules,
 or entity-specific rules against validation answers, and because the validation
 gold is distributed with the task we additionally report training-split scores
-as an independent estimate. The historical baseline is an earlier GPT-OSS-20B
-prototype scoring 0.460, whose hard empty-answer gates and award verifier the
-present system removes. Comparisons use a paired bootstrap over rows with
-20{,}000 resamples.
+as an independent estimate. Four factors are varied in controlled comparisons:
+sample count, aggregation rule, abstention threshold, and model. The identity
+anchor and the demonstration mix are held fixed in every run and are not
+ablated, so their contribution to the score is not measured. The historical
+baseline is an earlier GPT-OSS-20B prototype scoring 0.460, whose hard
+empty-answer gates and award verifier the present system removes. Comparisons
+use a paired bootstrap over rows with 20{,}000 resamples.
+
+\paragraph{Test split.}
+The test gold is not distributed, so we report no test score. Test predictions
+were generated once, on 8 August 2026, under the configuration locked above
+and before any test gold was available; the 475-row submission archive is
+frozen with its SHA-256 hash (\texttt{2ef01673\ldots}) and released with the
+code, so the organizers' score can be tied to this exact configuration.
 
 \section{Results}
 \label{sec:results}
@@ -285,23 +299,27 @@ present system removes. Comparisons use a paired bootstrap over rows with
 \begin{table}[t]
   \centering
   \small
-  \begin{tabular}{@{}lrrr@{}}
+  \begin{tabular}{@{}lrrrr@{}}
     \toprule
-    Relation & G4 31B & G3 27B & $\Delta$ \\
+    & \multicolumn{3}{c}{Validation} & Train \\
+    \cmidrule(lr){2-4} \cmidrule(l){5-5}
+    Relation & G4 31B & G3 27B & $\Delta$ & G4 31B \\
     \midrule
-    Land borders & \textbf{.989} & .859 & $+.130^{*}$ \\
-    Stock exchange & \textbf{.713} & .648 & $+.064$ \\
-    Death city & \textbf{.460} & .340 & $+.120$ \\
-    Capacity & .220 & \textbf{.230} & $-.010$ \\
-    Awards & .148 & \textbf{.205} & $-.057$ \\
-    Area & .370 & \textbf{.520} & $-.150^{*}$ \\
+    Land borders & \textbf{.989} & .859 & $+.130^{*}$ & .953 \\
+    Stock exchange & \textbf{.713} & .648 & $+.064$ & .663 \\
+    Death city & \textbf{.460} & .340 & $+.120$ & .500 \\
+    Capacity & .220 & \textbf{.230} & $-.010$ & .110 \\
+    Awards & .148 & \textbf{.205} & $-.057$ & .395 \\
+    Area & .370 & \textbf{.520} & $-.150^{*}$ & .360 \\
     \midrule
-    All relations & \textbf{.513} & .490 & $+.022$ \\
+    All relations & \textbf{.513} & .490 & $+.022$ & .484 \\
     \bottomrule
   \end{tabular}
-  \caption{Per-relation validation F1 for the two models. $^{*}$ marks
-  differences whose 95\% paired-bootstrap interval excludes zero. The overall
-  difference does not ($p=0.33$).}
+  \caption{Per-relation F1. $^{*}$ marks validation differences whose 95\%
+  paired-bootstrap interval excludes zero; the overall difference does not
+  ($[-0.022, +0.067]$, $p=0.33$). The last column is the locked Gemma 4 system
+  on the training split, an independent estimate on rows whose gold was used
+  only for demonstrations and threshold selection.}
   \label{tab:per-relation}
 \end{table}
 
@@ -314,23 +332,26 @@ Table~\ref{tab:per-relation} shows the two models are complementary rather than
 ordered. Gemma 4 is better on every relation rewarding adherence to a precise
 definition, reaching 0.989 on borders where one row separates it from a perfect
 score, while Gemma 3 is better on the two relations rewarding raw numeric
-recall. Only those two effects survive a paired bootstrap and they nearly
-cancel: the overall $+0.022$ has interval $[-0.022, +0.067]$ and $p=0.33$. The
-best system we can describe is one we may not submit, since pairing Gemma 3's
-area with Gemma 4's other relations would score 0.544 but sum to 58.1B
-parameters.
+recall. Only borders and area survive a paired bootstrap (death city's
+interval, $[0.000, +0.240]$, touches zero) and they nearly cancel: the overall
+$+0.022$ has interval $[-0.022, +0.067]$ and $p=0.33$, so on the whole split
+the two models are statistically indistinguishable. The best system we can
+describe is one we may not submit, since pairing Gemma 3's area with Gemma 4's
+other relations would score 0.544 but sum to 58.1B parameters.
 
-\paragraph{Tuning does not move the score; knowledge does.}
-Three of our four controlled comparisons came back empty. Sample count is flat
-from three to twenty passes; no aggregation rule we tried improves on a plain
-median; and sweeping the abstention thresholds over complete training traces
-simply rediscovered the values we had guessed, leaving death and exchange where
-they already stood. Only the model moved anything, and it moved relations in
-opposite directions rather than lifting the whole.
+\paragraph{Tuning does not move the score; the model redistributes it.}
+None of our four controlled comparisons moves the overall score beyond its
+interval. Sample count is flat from three to twenty passes; no aggregation
+rule we tried improves on a plain median; sweeping the abstention thresholds
+over complete training traces simply rediscovered the values we had guessed,
+leaving death and exchange where they already stood; and exchanging one
+eligible model for another changes the total by $0.022$. The model is the only
+factor that changes any single relation, and it changes them in opposite
+directions rather than lifting the whole.
 
 The reason is visible in the candidate pools. For \texttt{hasArea} a correct
 value appears in at least one sample for 0.69 of rows under Gemma 3 and 0.43
-under Gemma 4, while the aggregates return 0.54 and 0.37; for
+under Gemma 4, while the aggregates return 0.52 and 0.37; for
 \texttt{hasCapacity} the ceiling is 0.19. Where the correct value is absent
 from every sample no selection rule can recover it, and where it is present but
 in the minority, agreement-based aggregation discards it because an incorrect
@@ -355,12 +376,14 @@ over unanimous abstentions manufactures a city.
 Because our central claim is that correct objects are absent rather than
 mishandled, we audited it: across 5{,}392 calls the parser never dropped a gold
 alias present in an answer array. Of the incorrect rows, 58 of 63 for area, 71
-of 78 for capacity and 38 of 48 for death contain no correct value anywhere in
-any response, while aggregation discards a correct minority value in 15 further
-rows, worth about 0.03 overall.
+of 78 for capacity and 38 of the 48 death rows with a gold city contain no
+correct value anywhere in any response. Aggregation discards a correct value
+that at least one sample did return in 14 further rows (2 area, 7 capacity, 5
+death), worth about 0.03 overall; in the remaining 8 the value appears only in
+a rationale, never in an answer array.
 
-Stock exchanges are the exception. In 9 of 27 incorrect rows the model names the
-correct exchange in its rationale and then returns an empty set because it
+Stock exchanges are the exception. In 9 of the 27 rows scoring zero the model
+names the correct exchange in its rationale and then returns an empty set because it
 believes the listing has ended---Leclanché is ``previously listed on the SIX
 Swiss Exchange, but delisted following its acquisition''. Given that judgement
 it correctly obeys our instruction to return nothing for a company that is not
@@ -369,12 +392,19 @@ admitting its own negations. Here the ceiling is set by temporal belief rather
 than by missing knowledge.
 
 \paragraph{Remaining errors.}
-Median numeric error is 3.2\%, so failures are misidentification rather than
-noise: \emph{Mainland} returns 9{,}596{,}961, the area of China rather than of
-the 540\,km$^2$ island. The identity anchor was introduced for exactly this and
-does not eliminate it. Border recall is 0.998 once the omission pass is gated.
-Awards average 68.0 predicted entities against a gold mean of 145.8, up from
-15.2, but ten rows cannot be measured to better than $\pm0.11$.
+Among incorrect area rows the median relative error is 41\% under Gemma 4 and
+63\% under Gemma 3, while over correct rows it is below 0.5\%, so failures are
+misidentification rather than noise. The identity anchor was introduced for
+exactly this, and the traces show it can transmit the error as readily as
+prevent it: for \emph{Ayon Island}, 2{,}000\,km$^2$ in the East Siberian Sea,
+the anchor placed the subject in the Philippines and all seven samples
+followed, with a median of 1.5\,km$^2$; for \emph{Mainland}, a 540\,km$^2$
+Scottish island, the anchor declared the name ambiguous and the system
+returned nothing, which the evaluator scores no better. Whether the anchor helps on net we cannot say,
+because no run omits it. Under Gemma 4, border recall is 0.984 and precision
+0.996 once the omission pass is gated. Awards average 68.0 predicted entities
+against a gold mean of 145.8, up from 15.2, but ten rows cannot be measured to
+better than $\pm0.11$.
 
 \section{Related Work}
 \label{sec:related-work}
@@ -399,8 +429,8 @@ self-consistency and train-tuned per-relation aggregation
 \citep{albertroulhac2025rewise}; the runner-up generated an entity description
 before extraction and decomposed high-cardinality relations
 \citep{he2025selfrag}. We adopt both. Our contribution is not their invention
-but a measurement of what they are worth once the model may vary, which a
-fixed-model setting cannot reveal.
+but a measurement of how much the sampling and aggregation choices around them
+are worth once the model may vary, which a fixed-model setting cannot reveal.
 
 Self-consistency aggregates repeated samples by majority vote
 \citep{wang2023selfconsistency}, but assumes one final answer; set prediction
@@ -421,8 +451,9 @@ knowledge base construction, sharing one orchestration pattern across relations
 while assigning aggregation by cardinality. It scores 0.513 on validation.
 
 The more useful result is where the remaining error lives. Varying sample count,
-aggregation rule, abstention threshold, and model, only the last changes the
-score, and its gains are relation-specific and mutually exclusive under a
+aggregation rule, abstention threshold, and model, none changes the overall
+score beyond its confidence interval; only the model changes individual
+relations, and its gains are relation-specific and mutually exclusive under a
 parameter budget. An incorrect value that dominates the sample distribution
 defeats agreement-based selection precisely when agreement is what one would
 like to trust. Effort is therefore better spent on elicitation diversity than on
@@ -433,10 +464,17 @@ make systems easier to compare.
 
 The system cannot recover facts absent from the model's pretraining data,
 which matters most for deaths, listings, and awards close to the July 2026
-reference date. Reusing one model for border generation and verification may
-reinforce rather than correct a misconception, and train-calibrated thresholds
-may shift under distribution change. We therefore reserve the test split for a
-single final evaluation and record every prompt, response, and configuration.
+reference date. The identity anchor is not ablated: it is present in every
+run, so its net contribution is unmeasured, and Section~\ref{sec:error-analysis}
+shows it can propagate a misidentification as well as prevent one. The two
+models are compared on one validation split and are not statistically
+distinguishable overall; the per-relation differences we report are the
+finding, not a ranking. Reusing one model for border generation and
+verification may reinforce rather than correct a misconception, and
+train-calibrated thresholds may shift under distribution change. No test
+score is reported because the test gold is not distributed; the frozen test
+predictions described in Section~\ref{sec:experiments} await the organizers'
+evaluation, and every prompt, response, and configuration is recorded.
 
 \bibliography{custom}
 
