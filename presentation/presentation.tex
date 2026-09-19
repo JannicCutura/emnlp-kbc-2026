@@ -1,16 +1,51 @@
 \documentclass[aspectratio=169,10pt]{beamer}
 
 % ---------------------------------------------------------------------------
-% SetProbe: talk deck. Classic academic Beamer layout (Frankfurt theme: blue,
-% section strip with frame dots across the top, rounded blocks, outline at
-% each section), deliberately simple content: one message and one picture per
-% slide. Every number is taken from paper/paper.tex; nothing here comes from a
-% run the paper does not report.
+% SetProbe: talk deck. Styled to match the Smart Compaction deck (Madrid
+% theme, burgundy/slate/navy palette, three-part footline), deliberately
+% simple content: one message and one picture per slide. Every number is
+% taken from paper/paper.tex; nothing here comes from a run the paper does
+% not report.
 % ---------------------------------------------------------------------------
 
-\usetheme{Frankfurt}
+% --- Theme and colors (matches the Smart Compaction deck) ---
+\usetheme{Madrid}
+\usecolortheme{default}
+\definecolor{cprimary}{HTML}{911A4B}    % burgundy   -- highlight only: alerts, ours, correct
+\definecolor{csecondary}{HTML}{5A7D8C}  % slate blue -- baseline / other, footline edges
+\definecolor{ctertiary}{HTML}{0D1C24}   % dark navy  -- metadata, accents
+\colorlet{cmain}{ctertiary}             % theme furniture: titles, blocks, bullets, arrows
+\definecolor{cneutral}{HTML}{BBBBBB}    % light grey -- rules, de-emphasis, empty/absent
+\definecolor{chighlight}{HTML}{A89882}  % warm taupe -- emphasis
+\definecolor{cdark}{HTML}{222222}       % near-black -- text
+\setbeamercolor{structure}{fg=cmain}
+\setbeamercolor{title}{fg=white, bg=cmain}
+\setbeamercolor{frametitle}{fg=white, bg=cmain}
+\setbeamercolor{block title}{fg=white, bg=cmain}
+\setbeamercolor{block body}{bg=cmain!8}
+\setbeamercolor{item}{fg=cmain}
+\setbeamercolor{alerted text}{fg=cprimary}
+\setbeamerfont{alerted text}{series=\bfseries}
+\setbeamercolor{section in toc}{fg=cdark}
+\setbeamercolor{author in head/foot}{fg=white, bg=csecondary}
+\setbeamercolor{title in head/foot}{fg=white, bg=cmain!85!black}
+\setbeamercolor{date in head/foot}{fg=white, bg=csecondary}
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{footline}{%
+  \leavevmode\hbox{%
+    \begin{beamercolorbox}[wd=.333\paperwidth,ht=2.5ex,dp=1ex,center]{author in head/foot}%
+      \usebeamerfont{author in head/foot}\insertshortauthor
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.334\paperwidth,ht=2.5ex,dp=1ex,center]{title in head/foot}%
+      \usebeamerfont{title in head/foot}\insertshorttitle
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.333\paperwidth,ht=2.5ex,dp=1ex,right]{date in head/foot}%
+      \usebeamerfont{date in head/foot}\insertshortdate\hspace{2em}%
+      \insertframenumber{}/\inserttotalframenumber\hspace{2ex}
+    \end{beamercolorbox}}%
+}
+
+% --- Packages ---
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
@@ -22,40 +57,40 @@
 \pgfplotsset{compat=1.18}
 \usepackage{fontawesome5}
 \usepackage{hyperref}
+\usepackage{xcolor}
 
-% Palette: the theme's own structure blue for everything that is "ours" or
-% "after" (bars, sample boxes, alerted text), grey for "before / other", green
-% and red only for right and wrong. Charts contrast light and dark tints of
-% the same blue rather than introducing a second hue.
-\usebeamercolor{structure}
-\colorlet{base}{structure.fg}
-\colorlet{accent}{structure.fg}
-\colorlet{ours}{structure.fg}
-\definecolor{other}{HTML}{9E9E9E}
+% Palette: cmain (navy) for structure/"before" (subj boxes, arrows, labels),
+% cprimary (burgundy) for "ours"/highlight, csecondary (slate) for the
+% baseline/other comparator, cneutral (grey) for empty/absent. Green and red
+% are kept only for right/wrong checkmarks, a semantic axis the Smart
+% Compaction palette does not carry.
+\colorlet{base}{cmain}
+\colorlet{accent}{cprimary}
+\colorlet{ours}{cprimary}
+\colorlet{other}{csecondary}
 \definecolor{bad}{HTML}{C0392B}
 \definecolor{good}{HTML}{2E8B57}
-\setbeamercolor{alerted text}{fg=accent}
-\setbeamerfont{alerted text}{series=\bfseries}
-
-% Outline slide at the start of every section, current section highlighted.
-\AtBeginSection[]{%
-  \begin{frame}{Outline}
-    \tableofcontents[currentsection]
-  \end{frame}}
 
 \newcommand{\systemname}{SetProbe}
 \newcommand{\ok}{\textcolor{good}{\faCheck}}
 \newcommand{\no}{\textcolor{bad}{\faTimes}}
 \newcommand{\rel}[1]{\texttt{#1}}
 
-% Shared chart look. "area legend" draws filled swatches instead of the
-% default bar-outline glyph, which renders badly at this size.
+% Shared chart look, matching the Smart Compaction deck's pgfplots style.
+% Despined: only left/bottom axis lines, drawn to the last tick (no box).
 \pgfplotsset{
   deck/.style={
-    axis line style={base!50}, tick label style={font=\scriptsize},
-    label style={font=\scriptsize}, ymajorgrids, grid style={base!15},
+    axis x line*=bottom, axis y line*=left,
+    axis line style={cneutral, thin},
+    tick align=outside, tick style={cneutral, thin},
+    major tick length=2.5pt,
+    tick label style={font=\scriptsize, text=cdark!75},
+    label style={font=\scriptsize, text=cdark!75},
+    ymajorgrids, grid style={cneutral!30, thin},
+    axis on top,
     area legend,
     legend style={draw=none, font=\scriptsize, at={(0.5,1.02)}, anchor=south,
+                  fill=none,
                   /tikz/every even column/.append style={column sep=5pt}},
   },
 }
@@ -85,26 +120,22 @@
 
 \title[\systemname]{\systemname}
 \subtitle{Turning a language model's memory into complete database rows}
-\author{Jannic Alexander Cutura}
+\author[Cutura]{Jannic Alexander Cutura}
 \institute[ECB \& DSTI]{European Central Bank \& DSTI School of Engineering}
 \date[AKBC 2026]{AKBC 2026 Shared Task}
 
 \begin{document}
 
+% =============================================================
 \begin{frame}
-  \titlepage
-  % Same disclaimer as the paper, pinned to the bottom of the title frame.
-  \vfill
-  \begin{center}
-    \scriptsize\textcolor{black!60}{The views expressed in this presentation
-    are solely those of the author and do not necessarily reflect the views
-    of the European Central Bank or the European System of Central Banks.}
-  \end{center}
+\titlepage
+{\let\thefootnote\relax
+\footnote{\scriptsize Contact: \texttt{jannic.cutura@dsti.institute}\\
+\hspace*{0pt}Code: \url{https://github.com/JannicCutura/emnlp-kbc-2026}}%
+\footnote{\scriptsize The views expressed in this
+presentation are solely those of the author and do not necessarily reflect
+the views of the European Central Bank or the European System of Central Banks.}}
 \end{frame}
-
-% ===========================================================================
-\section{The problem}
-% ===========================================================================
 
 \begin{frame}{One question, three very different right answers}
   \begin{center}
@@ -259,10 +290,6 @@
   worst. Without it, \alert{prompt diversity and repeated sampling} are the
   only sources of variation left.
 \end{frame}
-
-% ===========================================================================
-\section{What we do}
-% ===========================================================================
 
 \begin{frame}{One row of inference}
   \begin{center}
@@ -557,10 +584,6 @@
   \end{columns}
 \end{frame}
 
-% ===========================================================================
-\section{What did not help, and why}
-% ===========================================================================
-
 \begin{frame}{Three knobs that did nothing}
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
@@ -626,10 +649,6 @@
     \end{column}
   \end{columns}
 \end{frame}
-
-% ===========================================================================
-\section{Results}
-% ===========================================================================
 
 \begin{frame}{Validation results}
   \begin{columns}[T]
